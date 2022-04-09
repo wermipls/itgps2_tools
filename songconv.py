@@ -59,25 +59,47 @@ def convert_background(in_path: str, out_path: str):
     scale_crop_image(in_path, out_path, size)
 
 def convert_audio(in_path: str, out_path: str) -> int:
-    # TODO: this really should be replaced with a proper procedure
-    # that takes how stepmania handles mp3 files into account...
-    # current "solution" results in the files being 40-50ms offsync
+    dir = os.path.dirname(os.path.realpath(__file__))
 
-    cmd = [
-        'ffmpeg', 
-        '-i', in_path,
-        '-map_metadata', '-1',
-        '-map', '0:a', 
-        '-ar', '48000',
-        '-c:a', 'libvorbis',
-        '-qscale:a', '4',
-        '-y', out_path,
+    mp3_exe = os.path.join(dir, 'rage_mp3_reader/rage_mp3_reader')
+    mp3_cmd = [
+        mp3_exe, in_path
         ]
-    
+
     file = os.path.basename(in_path)
     info(f'Converting audio file "{file}"...')
-    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return result.returncode
+
+    ext = os.path.splitext(in_path)[1]
+
+    if ext == '.mp3':
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', "pipe:0",
+            '-ar', '48000',
+            '-c:a', 'libvorbis',
+            '-qscale:a', '4',
+            '-y', out_path,
+        ]
+
+        mp3 = subprocess.Popen(mp3_cmd, stdout=subprocess.PIPE)
+        ffmpeg = subprocess.run(ffmpeg_cmd, stdin=mp3.stdout, stderr=subprocess.DEVNULL)
+
+        if mp3.returncode:
+            return mp3.returncode
+        else:
+            return ffmpeg.returncode
+    else:
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', in_path,
+            '-ar', '48000',
+            '-c:a', 'libvorbis',
+            '-qscale:a', '4',
+            '-y', out_path,
+        ]
+
+        ffmpeg = subprocess.run(ffmpeg_cmd, stderr=subprocess.DEVNULL)
+        return ffmpeg.returncode
 
 def roll_to_hold(note: Note) -> Note:
     if note.note_type == NoteType.ROLL_HEAD:
